@@ -117,6 +117,3 @@ kafka-fleet-monitor/
 ## License
 
 MIT
-
-![Before Triggering Chaos](image.png)
-

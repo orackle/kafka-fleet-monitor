@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kafka Fleet Monitor</title>
+  <!-- Modern Premium Fonts: Outfit + DM Sans + Space Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=3">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Navbar Header -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="brand-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="2" y="2" width="20" height="8" rx="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+        </div>
+        <div class="brand-title">
+          <h1>Kafka Fleet Monitor</h1>
+          <span class="brand-sub">Telemetry Operations</span>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <div class="stat-pill">
+          <span class="stat-lbl">Active Nodes</span>
+          <span id="active-nodes-count" class="stat-val">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-lbl">Anomalies</span>
+          <span id="total-anomalies-count" class="stat-val alert">0</span>
+        </div>
+        <div id="status" class="status-pill offline">
+          <span class="status-dot"></span>
+          <span class="status-txt">Disconnected</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Chaos Controls Bar -->
+    <section class="controls-bar">
+      <div class="controls-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Fault Injection</span>
+      </div>
+      <div class="controls-fields">
+        <div class="field">
+          <label for="chaos-node">Target</label>
+          <select id="chaos-node">
+            <option value="" disabled selected>Select node</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="chaos-type">Type</label>
+          <select id="chaos-type">
+            <option value="cpu_spike">CPU Load (+45%)</option>
+            <option value="mem_leak">Memory Leak (+40%)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="chaos-duration">Duration</label>
+          <div class="input-unit">
+            <input id="chaos-duration" type="number" value="30" min="5" max="120">
+            <span>sec</span>
+          </div>
+        </div>
+        <button id="chaos-btn" class="btn-execute">Trigger Fault</button>
+      </div>
+      <div id="toast-notify" class="toast-msg"></div>
+    </section>
+
+    <!-- Main Workspace -->
+    <main class="grid-layout">
+      <!-- Cluster Nodes Section -->
+      <section class="nodes-section">
+        <div class="section-top">
+          <h2>Cluster Node Telemetry</h2>
+          <div class="live-tag">
+            <span class="live-dot"></span>
+            <span>Realtime Stream</span>
+          </div>
+        </div>
+        <div id="node-grid" class="cards-grid">
+          <div id="empty-state" class="empty-box">
+            <div class="spinner-icon"></div>
+            <p>Connecting to Kafka telemetry stream...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Anomaly Log Sidebar -->
+      <aside class="log-section">
+        <div class="section-top">
+          <h2>Anomaly Audit Log</h2>
+          <span id="anomaly-badge" class="count-badge">0</span>
+        </div>
+        <div id="anomaly-feed" class="log-box">
+          <ul id="anomaly-list" class="log-items"></ul>
+          <div id="feed-empty" class="empty-feed-txt">
+            <p>No anomalies detected</p>
+            <span>Isolation Forest ML & Z-score bounds active</span>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="app.js?v=3"></script>
+</body>
+
+</html>

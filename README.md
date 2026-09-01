@@ -2,6 +2,8 @@
 
 A real-time system-monitoring pipeline built on a genuine 3-broker Kafka cluster with Zookeeper — simulating a heterogeneous server fleet, detecting anomalies with an unsupervised ML model, and streaming everything live to a browser dashboard. Includes a chaos-injection control loop so you can trigger a synthetic incident and watch the pipeline catch it end-to-end.
 
+![Dashboard demo](docs/demo.gif)
+
 ## Architecture
 
 ![Architecture diagram](docs/architecture.png)
@@ -76,7 +78,8 @@ docker compose up -d --scale anomaly-detector=2
 kafka-fleet-monitor/
 ├── docker-compose.yml
 ├── docs/
-│   └── architecture.png
+│   ├── architecture.png
+│   └── demo.gif
 ├── scripts/
 │   ├── run_fleet.ps1
 │   ├── inject_chaos.py

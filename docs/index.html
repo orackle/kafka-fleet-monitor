@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Fleet Monitor</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #13131a;
+    --border: #24242e;
+    --text: #e4e4e7;
+    --muted: #71717a;
+    --accent: #0284c7;
+    --accent2: #a855f7;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --err: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 520px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 32px;
+    text-align: center;
+  }
+  .logo {
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 28px;
+    font-weight: 600;
+  }
+  .stage-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px;
+    text-align: left;
+    display: inline-block;
+  }
+  .stage {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    font-size: 14px;
+    color: var(--muted);
+    transition: color 0.3s;
+  }
+  .stage.active { color: var(--text); }
+  .stage.done { color: var(--ok); }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .stage.active .dot {
+    background: var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  .stage.done .dot { background: var(--ok); }
+  .stage.error .dot { background: var(--err); }
+  .stage.error { color: var(--err); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .progress-track {
+    height: 6px;
+    background: #1c1c24;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .status-line {
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+    margin-bottom: 20px;
+  }
+  .elapsed {
+    font-size: 11px;
+    color: #4b4b57;
+    letter-spacing: 0.05em;
+  }
+  .btn {
+    display: none;
+    margin-top: 8px;
+    padding: 12px 28px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #0369a1; }
+  .btn.show { display: inline-block; }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 16px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Fleet Telemetry</div>
+  <h1 id="heading">Waking up the cluster</h1>
+
+  <ul class="stage-list" id="stages">
+    <li class="stage" data-stage="ping"><span class="dot"></span> Reaching server</li>
+    <li class="stage" data-stage="kafka"><span class="dot"></span> Starting Kafka + Zookeeper</li>
+    <li class="stage" data-stage="services"><span class="dot"></span> Booting node agents &amp; API</li>
+    <li class="stage" data-stage="ready"><span class="dot"></span> Dashboard ready</li>
+  </ul>
+
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="status-line" id="statusLine">Connecting&hellip;</div>
+  <div class="elapsed" id="elapsed">0s elapsed</div>
+  <button class="btn" id="retryBtn">Open dashboard</button>
+
+  <div class="hint">
+    The fleet monitor sleeps after 5 minutes of no visitors to save resources.<br>
+    First load after a sleep takes 15&ndash;25 seconds while Kafka, Zookeeper, and the anomaly detector spin back up.
+  </div>
+</div>
+
+<script>
+const APP_URL = "https://kafka-fleet-monitor-production.up.railway.app";
+const PROBE_PATH = "/api/nodes";
+const MAX_WAIT_MS = 90000;
+const POLL_INTERVAL_MS = 2000;
+
+const stages = {
+  ping: document.querySelector('[data-stage="ping"]'),
+  kafka: document.querySelector('[data-stage="kafka"]'),
+  services: document.querySelector('[data-stage="services"]'),
+  ready: document.querySelector('[data-stage="ready"]'),
+};
+const progressFill = document.getElementById('progressFill');
+const statusLine = document.getElementById('statusLine');
+const heading = document.getElementById('heading');
+const elapsedEl = document.getElementById('elapsed');
+const retryBtn = document.getElementById('retryBtn');
+
+let startTime = Date.now();
+let attempt = 0;
+let stopped = false;
+
+function setStage(name, state) {
+  const el = stages[name];
+  if (!el) return;
+  el.classList.remove('active', 'done', 'error');
+  el.classList.add(state);
+}
+
+function setProgress(pct) {
+  progressFill.style.width = pct + '%';
+}
+
+function tickElapsed() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  elapsedEl.textContent = s + 's elapsed';
+}
+
+function redirectToApp() {
+  window.location.href = APP_URL + '/';
+}
+
+async function probe() {
+  if (stopped) return;
+  attempt++;
+  tickElapsed();
+
+  if (Date.now() - startTime > MAX_WAIT_MS) {
+    stopped = true;
+    heading.textContent = "Taking longer than expected";
+    statusLine.textContent = "The server may be under heavier load than usual.";
+    setStage('ping', 'error');
+    retryBtn.classList.add('show');
+    retryBtn.textContent = "Try again";
+    retryBtn.onclick = () => window.location.reload();
+    return;
+  }
+
+  setStage('ping', 'active');
+  statusLine.textContent = attempt === 1 ? "Connecting…" : "Still waking up… (attempt " + attempt + ")";
+  setProgress(Math.min(15 + attempt * 8, 85));
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(APP_URL + PROBE_PATH, { signal: controller.signal, cache: 'no-store' });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      setStage('ping', 'done');
+      setStage('kafka', 'done');
+      setStage('services', 'done');
+      setStage('ready', 'active');
+      setProgress(100);
+      statusLine.textContent = "Dashboard is up. Redirecting…";
+      heading.textContent = "Cluster is awake";
+      setTimeout(() => {
+        setStage('ready', 'done');
+        redirectToApp();
+      }, 700);
+      return;
+    } else if (res.status === 502 || res.status === 503) {
+      setStage('ping', 'done');
+      setStage('kafka', 'active');
+      if (attempt > 3) {
+        setStage('kafka', 'done');
+        setStage('services', 'active');
+      }
+      statusLine.textContent = "Server responding, services still starting (HTTP " + res.status + ")";
+    } else {
+      statusLine.textContent = "Unexpected response (HTTP " + res.status + "), retrying…";
+    }
+  } catch (err) {
+    setStage('ping', 'active');
+    statusLine.textContent = "No response yet, retrying…";
+  }
+
+  setTimeout(probe, POLL_INTERVAL_MS);
+}
+
+retryBtn.onclick = () => window.location.reload();
+probe();
+</script>
+</body>
+</html>

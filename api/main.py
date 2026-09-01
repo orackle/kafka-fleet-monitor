@@ -6,6 +6,7 @@ import time
 from collections import deque
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from confluent_kafka import Consumer, Producer
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -78,6 +79,13 @@ async def lifespan(app:FastAPI):
     
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 @app.websocket("/ws")
 async def ws_endpoint(ws:WebSocket):

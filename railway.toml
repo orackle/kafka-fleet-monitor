@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.fly"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "/app/start.sh"
